@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import Controls from './components/Controls';
 import Simulation from './components/Simulation';
 import './App.css';
+import { BrowserRouter } from 'react-router-dom';
 
 function App() {
   const [populationSize, setPopulationSize] = useState(20);
@@ -25,24 +26,26 @@ function App() {
   };
 
   return (
-    <div className="App">
-      <h1>Симуляция Гонок с Генетическим Алгоритмом</h1>
-      <Controls
-        onStart={handleStart}
-        onPause={handlePause}
-        onReset={handleReset}
-        populationSize={populationSize}
-        setPopulationSize={setPopulationSize}
-        mutationRate={mutationRate}
-        setMutationRate={setMutationRate}
-      />
-      <Simulation
-        populationSize={populationSize}
-        mutationRate={mutationRate}
-        isRunning={isRunning}
-        resetFlag={resetFlag}
-      />
-    </div>
+    <BrowserRouter basename="/racer">
+      <div className="App">
+        <h1>Симуляция Гонок с Генетическим Алгоритмом</h1>
+        <Controls
+          onStart={handleStart}
+          onPause={handlePause}
+          onReset={handleReset}
+          populationSize={populationSize}
+          setPopulationSize={setPopulationSize}
+          mutationRate={mutationRate}
+          setMutationRate={setMutationRate}
+        />
+        <Simulation
+          populationSize={populationSize}
+          mutationRate={mutationRate}
+          isRunning={isRunning}
+          resetFlag={resetFlag}
+        />
+      </div>
+    </BrowserRouter>
   );
 }
 
