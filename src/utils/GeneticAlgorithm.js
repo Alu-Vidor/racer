@@ -27,6 +27,7 @@ export default class GeneticAlgorithm {
 
   evaluateFitness() {
     // Фитнес уже обновляется в методе Car.update
+    // Дополнительная обработка не требуется
   }
 
   selectParents() {

@@ -3,7 +3,7 @@ export default class Car {
   constructor(weights = null, startX, startY) {
     this.x = startX;
     this.y = startY;
-    this.angle = -Math.PI / 2; // Начальное направление вверх по трассе
+    this.angle = -Math.PI / 2; // Начальное направление вверх
     this.speed = 2;
 
     this.weights = weights || this.initializeWeights();
@@ -77,10 +77,6 @@ export default class Car {
     // Ограничение скорости
     this.speed = Math.min(this.speed, 5);
 
-    // Сохранение предыдущей позиции для проверки
-    const prevX = this.x;
-    const prevY = this.y;
-
     // Обновление позиции
     this.x += Math.cos(this.angle) * this.speed;
     this.y += Math.sin(this.angle) * this.speed;
@@ -96,6 +92,7 @@ export default class Car {
     this.fitness += this.speed;
   }
 
+  // Клонирование автомобиля с новыми весами
   clone() {
     const clonedCar = new Car(JSON.parse(JSON.stringify(this.weights)), this.x, this.y);
     clonedCar.color = this.getRandomColor(); // Назначаем новый цвет при клонировании

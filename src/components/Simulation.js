@@ -1,161 +1,142 @@
 // src/components/Simulation.js
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import Track from '../utils/Track';
 import GeneticAlgorithm from '../utils/GeneticAlgorithm';
 
-function Simulation({ populationSize, mutationRate, isRunning, resetFlag }) {
+function Simulation({ populationSize, mutationRate, isRunning }) {
   const canvasRef = useRef(null);
-  const [ga, setGa] = useState(null);
-  const [track, setTrack] = useState(null);
-  const [animationId, setAnimationId] = useState(null);
-  const [isPlacingObstacle, setIsPlacingObstacle] = useState(false);
+  const gaRef = useRef(null);
+  const trackRef = useRef(null);
+  const animationIdRef = useRef(null);
 
+  // Инициализация GA и Track при изменении populationSize или mutationRate
   useEffect(() => {
     const canvas = canvasRef.current;
-    const trackWidth = canvas.width;
-    const trackHeight = canvas.height;
-    const newTrack = new Track(trackWidth, trackHeight);
-    const newGa = new GeneticAlgorithm(populationSize, newTrack, mutationRate);
-    setTrack(newTrack);
-    setGa(newGa);
+    const width = canvas.width;
+    const height = canvas.height;
+    const track = new Track(width, height);
+    trackRef.current = track;
+    const ga = new GeneticAlgorithm(populationSize, track, mutationRate);
+    gaRef.current = ga;
   }, [populationSize, mutationRate]);
 
+  // Анимационный цикл
   useEffect(() => {
-    if (!ga || !track) return;
-
-    // Если требуется сбросить симуляцию
-    if (resetFlag) {
-      ga.initializePopulation();
-      track.obstacles = []; // Удаляем все препятствия при сбросе
-    }
-
     const render = () => {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Рисуем трассу
-      track.draw(ctx);
+      trackRef.current.draw(ctx);
 
       // Обновляем и рисуем автомобили
-      ga.population.forEach(car => {
+      gaRef.current.population.forEach(car => {
         if (!car.isCrashed) {
-          car.update(track);
+          car.update(trackRef.current);
           drawCar(ctx, car);
         }
       });
 
       // Проверка завершения поколения
-      const activeCars = ga.population.filter(car => !car.isCrashed);
+      const activeCars = gaRef.current.population.filter(car => !car.isCrashed);
       if (activeCars.length === 0) {
-        ga.evaluateFitness();
-        ga.generateNextGeneration();
+        gaRef.current.evaluateFitness();
+        gaRef.current.generateNextGeneration();
         // Перезапускаем позиции автомобилей на трассе
-        ga.population.forEach(car => {
+        gaRef.current.population.forEach(car => {
           const angle = Math.random() * 2 * Math.PI;
-          const radius = (track.outerRadius + track.innerRadius) / 2;
-          car.x = track.cx + radius * Math.cos(angle);
-          car.y = track.cy + radius * Math.sin(angle);
-          car.angle = angle + Math.PI / 2; // Направление вдоль трассы
+          const radius = (trackRef.current.outerRadius + trackRef.current.innerRadius) / 2;
+          car.x = trackRef.current.cx + radius * Math.cos(angle);
+          car.y = trackRef.current.cy + radius * Math.sin(angle);
+          car.angle = angle + Math.PI / 2;
           car.speed = 2;
           car.isCrashed = false;
           car.fitness = 0;
           car.distanceTravelled = 0;
-          car.color = car.getRandomColor(); // Назначаем новый цвет
+          car.color = car.getRandomColor();
         });
       }
 
       // Отображение информации о поколении и лучшем автомобиле
       ctx.fillStyle = 'black';
       ctx.font = '20px Arial';
-      ctx.fillText(`Поколение: ${ga.generation}`, 10, 30);
+      ctx.fillText(`Поколение: ${gaRef.current.generation}`, 10, 30);
 
-      // Находим самый лучший автомобиль в текущем поколении
-      const bestCar = ga.population.reduce((prev, current) => (prev.fitness > current.fitness) ? prev : current, ga.population[0]);
+      const bestCar = gaRef.current.population.reduce((prev, current) => (prev.fitness > current.fitness) ? prev : current, gaRef.current.population[0]);
       ctx.fillText(`Лучший фитнес: ${bestCar.fitness.toFixed(2)}`, 10, 60);
 
-      // Продолжаем анимацию, если симуляция запущена
-      if (isRunning) {
-        const id = requestAnimationFrame(render);
-        setAnimationId(id);
-      }
+      // Запрос следующего кадра
+      animationIdRef.current = requestAnimationFrame(render);
     };
 
-    // Запускаем анимацию, если симуляция запущена
     if (isRunning) {
-      const id = requestAnimationFrame(render);
-      setAnimationId(id);
+      // Начинаем анимацию
+      if (!animationIdRef.current) {
+        animationIdRef.current = requestAnimationFrame(render);
+      }
+    } else {
+      // Приостанавливаем анимацию
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current);
+        animationIdRef.current = null;
+      }
     }
 
-    // Останавливаем анимацию, если симуляция приостановлена
-    if (!isRunning && animationId) {
-      cancelAnimationFrame(animationId);
-    }
-
+    // Очистка при размонтировании компонента
     return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current);
       }
     };
-  }, [ga, track, isRunning, resetFlag]);
+  }, [isRunning]);
 
-  // Обработчик кликов на канвасе
-  const handleCanvasClick = (e) => {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const clickY = e.clientY - rect.top;
-
-    if (isPlacingObstacle) {
-      // Размещаем препятствие на трассе
-      if (track.isOnTrack(clickX, clickY)) {
-        track.addObstacle(clickX, clickY, 10); // Размер препятствия изменен на 10
-      }
-      return;
-    }
-
-    // Проверяем, попал ли клик на какую-либо машину
-    ga.population.forEach(car => {
-      if (!car.isCrashed) {
-        const dx = car.x - clickX;
-        const dy = car.y - clickY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance <= 10) { // Радиус клика по машине
-          car.color = car.getRandomColor(); // Изменяем цвет машины
-          car.fitness += 50; // Добавляем бонусный фитнес
-        }
-      }
-    });
-  };
-
-  // Обработчик клавиш для включения режима размещения препятствий
-  const handleKeyDown = (e) => {
-    if (e.key === 'Shift') {
-      setIsPlacingObstacle(true);
-    }
-  };
-
-  const handleKeyUp = (e) => {
-    if (e.key === 'Shift') {
-      setIsPlacingObstacle(false);
-    }
-  };
-
+  // Обработчик кликов на канвасе для изменения цвета машины или добавления препятствий
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    const handleCanvasClick = (e) => {
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+
+      // Проверка, удерживается ли клавиша Shift для добавления препятствий
+      if (e.shiftKey) {
+        // Добавляем препятствие, если кликнут на трассе
+        if (trackRef.current.isOnTrack(clickX, clickY)) {
+          trackRef.current.addObstacle(clickX, clickY, 10); // Размер препятствия 10
+        }
+        return;
+      }
+
+      // Проверяем, попал ли клик на какую-либо машину
+      gaRef.current.population.forEach(car => {
+        if (!car.isCrashed) {
+          const dx = car.x - clickX;
+          const dy = car.y - clickY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance <= 10) { // Радиус клика по машине
+            car.color = car.getRandomColor(); // Изменяем цвет машины
+            car.fitness += 50; // Добавляем бонусный фитнес
+          }
+        }
+      });
+    };
+
+    const canvas = canvasRef.current;
+    canvas.addEventListener('click', handleCanvasClick);
+
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      canvas.removeEventListener('click', handleCanvasClick);
     };
   }, []);
 
+  // Функция для рисования автомобиля
   const drawCar = (ctx, car) => {
     ctx.save();
     ctx.translate(car.x, car.y);
     ctx.rotate(car.angle);
-  
-    // Рисуем треугольник вместо квадрата
+
+    // Рисуем треугольник вместо квадрата для указания направления
     ctx.fillStyle = car.color;
     ctx.beginPath();
     ctx.moveTo(10, 0);
@@ -163,9 +144,22 @@ function Simulation({ populationSize, mutationRate, isRunning, resetFlag }) {
     ctx.lineTo(-10, 7);
     ctx.closePath();
     ctx.fill();
-  
+
+    // Визуализируем сенсор (желтая линия)
+    ctx.strokeStyle = 'yellow';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(30, 0); // Длина сенсора
+    ctx.stroke();
+
+    // Отображаем скорость машины
+    ctx.fillStyle = 'black';
+    ctx.font = '12px Arial';
+    ctx.fillText(`V: ${car.speed.toFixed(1)}`, -15, -15);
+
     ctx.restore();
-  };  
+  };
 
   return (
     <div className="simulation">
@@ -174,7 +168,6 @@ function Simulation({ populationSize, mutationRate, isRunning, resetFlag }) {
         width={800}
         height={600}
         style={{ border: '1px solid black' }}
-        onClick={handleCanvasClick}
       />
       <p>
         Удерживайте <strong>Shift</strong> и кликайте по трассе, чтобы добавлять препятствия.
